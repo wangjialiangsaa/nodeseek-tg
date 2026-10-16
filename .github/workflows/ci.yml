@@ -27,3 +27,16 @@ jobs:
             sleep 1
           done
           exit 1
+      - name: One-command install and backup on Linux
+        run: |
+          target_dir="$RUNNER_TEMP/nodeseek-tg-install"
+          cleanup() {
+            if test -f "$target_dir/compose.yaml"; then
+              sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" uninstall
+            fi
+          }
+          trap cleanup EXIT
+          curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | sudo INSTALL_DIR="$target_dir" PORT=18787 bash -s -- install --repo wangjialiangsaa/nodeseek-tg
+          curl --fail --silent http://127.0.0.1:18787/health
+          sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" backup
+          test -n "$(find "$target_dir/backups" -name '*.tar.gz' -size +0c -print -quit)"
