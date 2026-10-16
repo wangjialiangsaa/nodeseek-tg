@@ -46,6 +46,6 @@ jobs:
           fi
           sudo INSTALL_DIR="$target_dir" python3 tests/terminal-smoke.py -- bash "$target_dir/install.sh" config
           sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" status
-          docker compose --project-name nodeseek-tg -f "$target_dir/compose.yaml" exec -T nodeseek-tg node src/health.mjs
+          sudo docker compose --project-name nodeseek-tg -f "$target_dir/compose.yaml" exec -T nodeseek-tg node src/health.mjs
           sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" backup
           test -n "$(find "$target_dir/backups" -name '*.tar.gz' -size +0c -print -quit)"
