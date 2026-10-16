@@ -2,6 +2,8 @@
 
 ## SSH 配置版（当前）
 
+数字菜单验证已通过：直接运行 install.sh 打开菜单，选择状态、失败后重选、非法编号和退出均由真实 Linux PTY 测试通过。完整 Linux CI：https://github.com/wangjialiangsaa/nodeseek-tg/actions/runs/38848133679 ，代码版本 391a8053db15294e13bc377e83d8d098b01f8976。
+
 2026-10-16：本地 17 项测试，16 通过，1 项 Bash 检查因 Windows 缺少 Bash 跳过；依赖审计 0 已知漏洞。
 
 真实 Windows PTY 已验证 Token / Cookie 输入不回显、配置保存、Ctrl+C 取消。实际后台进程已验证心跳健康，不启动 HTTP 服务。独立审查发现旧更新器要求 public 目录，已保留仅兼容用途的 .gitkeep；PR 安装测试已改为检出源码。
