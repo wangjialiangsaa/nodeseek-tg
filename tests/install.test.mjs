@@ -22,3 +22,4 @@ test('Docker excludes private data and uses persistent volume with a health chec
   assert.ok(!readFileSync('install.sh', 'utf8').includes('--user root'), 'Backup must use the same unprivileged UID as the app to read 0600 data');
   assert.ok(readFileSync('public/.gitkeep', 'utf8').includes('Compatibility'), 'Original installed updater requires the public directory to exist');
 });
+

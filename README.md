@@ -38,6 +38,14 @@ bash /opt/nodeseek-tg/install.sh config
 
 ## 日常操作
 
+**交互式数字菜单**：直接执行，不需要记各个操作命令：
+
+```bash
+bash /opt/nodeseek-tg/install.sh
+```
+
+输入 `1` 填写配置，`2` 查看状态，`3` 测试 TG，`4` 测试论坛，`5` 立即检查，`6` 查看日志，`7` 停止，`8` 启动，`9` 备份，`10` 更新，`0` 退出。操作完成后返回菜单，失败后也可重新选择。原有直接命令仍可用于自动化：
+
 ```bash
 # 修改配置，保存后恢复后台监控
 bash /opt/nodeseek-tg/install.sh config

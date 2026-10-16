@@ -4,6 +4,8 @@ set -Eeuo pipefail
 usage() {
   cat <<'EOF'
 NodeSeek TG 安装与管理
+  bash install.sh                     # 打开交互式数字菜单
+  bash install.sh menu
   bash install.sh install [--repo OWNER/REPO] [--branch main]
   bash install.sh update [--repo OWNER/REPO]
   bash install.sh config | status | logs | test-nodeseek | test-telegram | check
@@ -14,7 +16,7 @@ NodeSeek TG 安装与管理
 EOF
 }
 fail() { printf '错误：%s\n' "$*" >&2; exit 1; }
-action="${1:-install}"
+action="${1:-menu}"
 if [[ "$action" == --help || "$action" == -h ]]; then usage; exit 0; fi
 if (($#)); then shift; fi
 repo="${NODESEEK_TG_REPO:-}"
@@ -29,7 +31,7 @@ while (($#)); do
 done
 [[ -z "$repo" || "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail '仓库格式应为 OWNER/REPO'
 [[ "$branch" =~ ^[A-Za-z0-9_./-]+$ && "$branch" != *..* ]] || fail '分支名称无效'
-case "$action" in install|update|config|status|logs|test-nodeseek|test-telegram|check|stop|start|backup|uninstall) ;; *) usage; fail '未知操作' ;; esac
+case "$action" in menu|install|update|config|status|logs|test-nodeseek|test-telegram|check|stop|start|backup|uninstall) ;; *) usage; fail '未知操作' ;; esac
 [[ "$(uname -s)" == Linux ]] || fail '安装脚本需要 Linux 服务器；本地开发请使用 npm start'
 [[ "$EUID" -eq 0 ]] || fail '请使用 root 或 sudo 运行安装脚本'
 install_dir="${INSTALL_DIR:-/opt/nodeseek-tg}"
@@ -52,6 +54,47 @@ configure_service() {
   resume_service
   was_running=false
   trap cleanup EXIT
+}
+show_menu() {
+  [[ -t 1 && -r /dev/tty ]] || fail '菜单需要交互式 SSH 终端，请使用 ssh -t 登录'
+  local choice menu_action
+  while true; do
+    cat <<'EOF'
+
+========== NodeSeek → Telegram ==========
+  1. 填写 / 修改配置
+  2. 查看运行状态
+  3. 发送 Telegram 测试消息
+  4. 测试 NodeSeek 登录连接
+  5. 立即检查新私信
+  6. 查看运行日志（Ctrl+C 停止查看）
+  7. 停止服务
+  8. 启动服务
+  9. 备份数据
+ 10. 更新程序
+  0. 退出菜单
+EOF
+    if ! IFS= read -r -p '请选择 [0-10]：' choice </dev/tty; then return 0; fi
+    case "$choice" in
+      0) return 0 ;;
+      1) menu_action=config ;;
+      2) menu_action=status ;;
+      3) menu_action=test-telegram ;;
+      4) menu_action=test-nodeseek ;;
+      5) menu_action=check ;;
+      6) menu_action=logs ;;
+      7) menu_action=stop ;;
+      8) menu_action=start ;;
+      9) menu_action=backup ;;
+      10) menu_action=update ;;
+      *) printf '无效选项，请输入 0–10。\n'; continue ;;
+    esac
+    if INSTALL_DIR="$install_dir" bash "$install_dir/install.sh" "$menu_action"; then
+      printf '\n操作完成，已返回菜单。\n'
+    else
+      printf '\n操作未完成，原配置保留；可查看上方提示后重试。\n'
+    fi
+  done
 }
 
 if [[ "$action" == install || "$action" == update ]]; then
@@ -106,6 +149,7 @@ if [[ "$action" == install || "$action" == update ]]; then
   compose up -d --build --wait --wait-timeout 120
   printf '\n服务已启动。管理目录：%s\n' "$install_dir"
   printf 'SSH 配置：bash %s/install.sh config\n' "$install_dir"
+  printf '交互式菜单：bash %s/install.sh\n' "$install_dir"
   if [[ "$action" == install && "${NONINTERACTIVE:-0}" != 1 ]]; then
     if [[ -t 1 && -r /dev/tty ]]; then configure_service; else printf '当前无交互终端，已跳过向导；请在 SSH 中执行上面的 config 命令。\n'; fi
   fi
@@ -115,6 +159,7 @@ fi
 
 [[ -f "$install_dir/compose.yaml" ]] || fail '找不到已安装程序'
 case "$action" in
+  menu) show_menu ;;
   config) configure_service ;;
   status) compose ps; compose run --rm --no-deps -T nodeseek-tg node src/cli.mjs status ;;
   test-nodeseek|test-telegram) compose run --rm --no-deps -T nodeseek-tg node src/cli.mjs "$action" ;;
