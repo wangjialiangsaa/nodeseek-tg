@@ -18,10 +18,12 @@ curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/in
 4. 登录方式：`1` 账号密码（新安装默认）或 `2` Cookie（旧配置默认保留）。
 5. 选择账号密码时填写论坛账号、密码；Cookie 模式填写 Cookie 和对应 User-Agent。
 6. 检查间隔（默认 60 秒，最短 30 秒）。
-7. 可选 NodeSeek / Telegram HTTP(S) 代理。
+7. 可选 NodeSeek / Telegram HTTP(S) 或 SOCKS5 代理，支持用户名密码认证。
 8. 是否开启监控。
 
 Token、论坛密码、Cookie 和代理输入会隐藏，不显示星号，粘贴后按回车即可。已有配置回车保留，代理输入 `-` 清除。Ctrl+C 取消且不保存。无需管理员网页密码、域名或防火墙入站端口。普通用户需先切换到 root，或在支持 sudo 的系统上将管道右侧改为 `sudo bash -s -- install --repo wangjialiangsaa/nodeseek-tg`。
+
+SOCKS5 格式为 `socks5://用户名:密码@地址:端口`，可直接粘贴带 `#名称` 的分享链接；名称不会保存。程序在容器内启动仅监听回环地址的临时转接代理，由 SOCKS5 上游解析目标域名，关闭浏览器或请求客户端时自动释放。代理无法保证通过论坛的人机验证。
 
 ## 账号密码与人机验证
 

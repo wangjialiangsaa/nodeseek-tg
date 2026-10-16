@@ -95,11 +95,12 @@ test('CLI status masks credentials and connectivity tests use saved configuratio
 test('stdin login overrides stay in memory until verification and never replace settings on failure', async t => {
   const { store } = fixture(t); await configure(store, scripted([...values]));
   const before = store.getConfig();
-  const credentials = { username: 'example-user', password: 'stdin-secret' };
-  await assert.rejects(() => runCommand('login', { store, credentials, io: { log() {} }, login: async config => { assert.equal(config.password, 'stdin-secret'); throw new Error('cancelled'); } }), /cancelled/);
+  const credentials = { username: 'example-user', password: 'stdin-secret', nsProxy: 'socks5://user:pass@127.0.0.1:1080#label' };
+  await assert.rejects(() => runCommand('login', { store, credentials, io: { log() {} }, login: async config => { assert.equal(config.password, 'stdin-secret'); assert.equal(config.nsProxy, 'socks5://user:pass@127.0.0.1:1080'); throw new Error('cancelled'); } }), /cancelled/);
   assert.deepEqual(store.getConfig(), before);
   await runCommand('login', { store, credentials, io: { log() {} }, login: async () => ({ cookie: '_t=verified', browserState: { cookies: [], origins: [] }, userAgent: 'Browser' }) });
   assert.equal(store.getConfig().authMode, 'password'); assert.equal(store.getConfig().password, 'stdin-secret');
+  assert.equal(store.getConfig().nsProxy, 'socks5://user:pass@127.0.0.1:1080');
   assert.equal(store.getConfig().botToken, before.botToken);
 });
 

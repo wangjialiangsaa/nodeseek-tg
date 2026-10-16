@@ -21,7 +21,7 @@ jobs:
       - run: docker compose config --quiet
       - run: docker build -t nodeseek-tg:test .
       - name: Real Chromium inbox and verification desktop
-        run: docker run --rm --shm-size=128m -v "$PWD/tests:/app/tests:ro" nodeseek-tg:test node --test tests/browser.test.mjs
+        run: docker run --rm --shm-size=128m -v "$PWD/tests:/app/tests:ro" nodeseek-tg:test node --test --test-concurrency=1 tests/browser.test.mjs tests/proxy.test.mjs
       - name: Container smoke test
         run: |
           docker run -d --name ns-test nodeseek-tg:test

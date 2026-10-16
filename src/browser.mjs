@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright-core';
 import { fetchMessages, NodeSeekError } from './nodeseek.mjs';
+import { openProxy } from './proxy.mjs';
 
 const origin = 'https://www.nodeseek.com';
 const isForum = domain => /^\.?(?:www\.)?nodeseek\.com$/.test(domain);
@@ -36,10 +37,11 @@ export async function openBrowser(config, { desktop = false } = {}) {
   const display = `:${displayNumber}`;
   const env = { ...process.env, DISPLAY: display, XDG_CONFIG_HOME: directory, XDG_CACHE_HOME: directory };
   const children = [];
-  let browser; let closed = false; let desktopPassword;
+  let browser; let upstream; let closed = false; let desktopPassword;
   async function close() {
     if (closed) return; closed = true;
     await browser?.close().catch(() => {});
+    await upstream?.close().catch(() => {});
     for (const process of children.reverse()) if (process.exitCode == null) process.kill('SIGTERM');
     await Promise.all(children.map(p => p.exitCode != null ? undefined : Promise.race([new Promise(r => p.once('exit', r)), delay(2000)])));
     for (const process of children) if (process.exitCode == null) process.kill('SIGKILL');
@@ -61,7 +63,8 @@ export async function openBrowser(config, { desktop = false } = {}) {
       children.push(child('x11vnc', ['-display', display, '-localhost', '-rfbauth', passwordFile, '-forever', '-shared', '-rfbport', '5900', '-quiet'], env));
       children.push(child('websockify', ['--web=/usr/share/novnc', '0.0.0.0:6080', '127.0.0.1:5900'], env));
     }
-    const proxyUrl = config.nsProxy ? new URL(config.nsProxy) : null;
+    upstream = await openProxy(config.nsProxy);
+    const proxyUrl = upstream.url ? new URL(upstream.url) : null;
     const proxy = proxyUrl ? { server: `${proxyUrl.protocol}//${proxyUrl.host}`, username: decodeURIComponent(proxyUrl.username), password: decodeURIComponent(proxyUrl.password) } : undefined;
     browser = await chromium.launch({ executablePath, headless: false, chromiumSandbox: false, env, proxy, args: ['--disable-dev-shm-usage', '--window-size=1280,900'], timeout: 45000 });
     const context = await browser.newContext({ storageState: config.browserState || undefined, viewport: { width: 1280, height: 800 } });

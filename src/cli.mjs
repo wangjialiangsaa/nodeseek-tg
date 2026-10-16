@@ -29,8 +29,8 @@ export async function configure(store, io, { login = loginNodeSeek } = {}) {
   }
   const interval = await io.ask('检查间隔，最短 30 秒', { defaultValue: String(previous.interval) });
   input.interval = interval.trim() ? Number(interval) : previous.interval;
-  input.nsProxy = await io.ask('NodeSeek 代理（可选 HTTP(S)）', { secret: true, proxy: true, hasValue: !!previous.nsProxy });
-  input.tgProxy = await io.ask('Telegram 代理（可选 HTTP(S)）', { secret: true, proxy: true, hasValue: !!previous.tgProxy });
+  input.nsProxy = await io.ask('NodeSeek 代理（可选 HTTP(S) / SOCKS5）', { secret: true, proxy: true, hasValue: !!previous.nsProxy });
+  input.tgProxy = await io.ask('Telegram 代理（可选 HTTP(S) / SOCKS5）', { secret: true, proxy: true, hasValue: !!previous.tgProxy });
   for (const key of ['nsProxy', 'tgProxy']) if (input[key].trim() === '-') { input[key] = ''; input[`clear${key[0].toUpperCase()}${key.slice(1)}`] = true; }
   const defaultEnabled = previous.userId ? previous.enabled : true;
   const enabled = (await io.ask('开启监控？y 开启 / n 暂停', { defaultValue: defaultEnabled ? 'y' : 'n' })).trim().toLowerCase();
@@ -56,7 +56,7 @@ export async function runCommand(command, { store, io = { log: console.log }, fe
   if (command === 'login') {
     if (credentials) {
       if (typeof credentials.username !== 'string' || !credentials.username || typeof credentials.password !== 'string' || !credentials.password) throw new Error('标准输入必须提供账号和密码');
-      config = validateConfig({ authMode: 'password', username: credentials.username, password: credentials.password }, config);
+      config = validateConfig({ authMode: 'password', username: credentials.username, password: credentials.password, ...('nsProxy' in credentials ? { nsProxy: credentials.nsProxy } : {}) }, config);
     }
     if (config.authMode !== 'password') throw new Error('请先执行 config，选择账号密码登录方式');
     const verified = await login(config, io);

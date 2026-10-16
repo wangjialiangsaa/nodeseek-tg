@@ -17,8 +17,10 @@ export function validateConfig(input, previous = defaults) {
   for (const key of ['nsProxy', 'tgProxy']) {
     if (input[`clear${key[0].toUpperCase()}${key.slice(1)}`] === true) config[key] = '';
     if (config[key]) {
-      let url; try { url = new URL(config[key]); } catch { throw new Error('代理必须是有效 HTTP(S) 地址'); }
-      if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.hash || url.search || url.pathname !== '/') throw new Error('代理只支持 HTTP(S)，格式 http://用户名:密码@IP:端口');
+      let url; try { url = new URL(config[key]); } catch { throw new Error('代理必须是有效 HTTP(S) 或 SOCKS5 地址'); }
+      const socks = ['socks5:', 'socks5h:'].includes(url.protocol);
+      if ((!socks && !['http:', 'https:'].includes(url.protocol)) || !url.hostname || (!socks && url.hash) || url.search || !['', '/'].includes(url.pathname)) throw new Error('代理只支持 HTTP(S) 或 SOCKS5，格式 协议://用户名:密码@IP:端口');
+      if (socks) { url.hash = ''; config[key] = url.href; }
     }
   }
   if ('enabled' in input) { if (typeof input.enabled !== 'boolean') throw new Error('监控开关格式错误'); config.enabled = input.enabled; }
