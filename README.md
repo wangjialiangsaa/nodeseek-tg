@@ -36,10 +36,10 @@ ssh -L 8787:127.0.0.1:8787 root@你的服务器IP
 
 然后打开 **http://127.0.0.1:8787**。配置的是机器人 Token 和主人数字 Chat ID；它们不是 IP 地址。服务器 IP 用于 SSH 和访问面板，代理 IP 可选。
 
-仓库公开后也可以从 GitHub 下载脚本并一条命令安装。将下方 `你的GitHub用户名/你的仓库名` 替换成实际仓库（当前尚未发布，不要原样执行）：
+也可以直接从 [GitHub 仓库](https://github.com/wangjialiangsaa/nodeseek-tg) 下载脚本并一条命令安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的GitHub用户名/你的仓库名/main/install.sh | sudo bash -s -- install --repo 你的GitHub用户名/你的仓库名
+curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | sudo bash -s -- install --repo wangjialiangsaa/nodeseek-tg
 ```
 
 如需直接监听服务器 IP，首次安装使用 `sudo BIND_IP=0.0.0.0 bash install.sh install`。面板包含登录凭据，正式公网访问请配置 HTTPS 反向代理；不要通过公网明文 HTTP 传输 Cookie 和 Bot Token。
@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/你的GitHub用户名/你的仓库�
 bash /opt/nodeseek-tg/install.sh status
 bash /opt/nodeseek-tg/install.sh logs
 bash /opt/nodeseek-tg/install.sh backup
-bash /opt/nodeseek-tg/install.sh update --repo 实际用户名/实际仓库名
+bash /opt/nodeseek-tg/install.sh update --repo wangjialiangsaa/nodeseek-tg
 bash /opt/nodeseek-tg/install.sh stop
 bash /opt/nodeseek-tg/install.sh start
 bash /opt/nodeseek-tg/install.sh uninstall
