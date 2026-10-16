@@ -8,10 +8,10 @@ NodeSeek TG 安装与管理
   bash install.sh menu
   bash install.sh install [--repo OWNER/REPO] [--branch main]
   bash install.sh update [--repo OWNER/REPO]
-  bash install.sh config | status | logs | test-nodeseek | test-telegram | check
+  bash install.sh config | login | status | logs | test-nodeseek | test-telegram | check
   bash install.sh stop | start | backup | uninstall
 默认目录 /opt/nodeseek-tg，可设置 INSTALL_DIR。卸载保留数据库和配置。
-所有配置在 SSH 终端填写，不需要网页或开放端口。
+所有配置在 SSH 终端填写；账号登录的人机验证通过临时浏览器和 SSH 隧道完成。
 设置 NONINTERACTIVE=1 可跳过安装后的配置向导（用于无人值守部署）。
 EOF
 }
@@ -31,7 +31,7 @@ while (($#)); do
 done
 [[ -z "$repo" || "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail '仓库格式应为 OWNER/REPO'
 [[ "$branch" =~ ^[A-Za-z0-9_./-]+$ && "$branch" != *..* ]] || fail '分支名称无效'
-case "$action" in menu|install|update|config|status|logs|test-nodeseek|test-telegram|check|stop|start|backup|uninstall) ;; *) usage; fail '未知操作' ;; esac
+case "$action" in menu|install|update|config|login|status|logs|test-nodeseek|test-telegram|check|stop|start|backup|uninstall) ;; *) usage; fail '未知操作' ;; esac
 [[ "$(uname -s)" == Linux ]] || fail '安装脚本需要 Linux 服务器；本地开发请使用 npm start'
 [[ "$EUID" -eq 0 ]] || fail '请使用 root 或 sudo 运行安装脚本'
 install_dir="${INSTALL_DIR:-/opt/nodeseek-tg}"
@@ -50,7 +50,7 @@ configure_service() {
   if [[ -n "$(compose ps --status running -q nodeseek-tg)" ]]; then was_running=true; fi
   compose stop
   trap 'resume_service >/dev/null || true; cleanup' EXIT
-  compose run --rm --no-deps -it nodeseek-tg node src/cli.mjs config </dev/tty
+  compose run --rm --no-deps -p 127.0.0.1:6080:6080 -it nodeseek-tg node src/cli.mjs config </dev/tty
   resume_service
   was_running=false
   trap cleanup EXIT
@@ -72,9 +72,10 @@ show_menu() {
   8. 启动服务
   9. 备份数据
  10. 更新程序
+ 11. 重新登录 NodeSeek / 手动验证
   0. 退出菜单
 EOF
-    if ! IFS= read -r -p '请选择 [0-10]：' choice </dev/tty; then return 0; fi
+    if ! IFS= read -r -p '请选择 [0-11]：' choice </dev/tty; then return 0; fi
     case "$choice" in
       0) return 0 ;;
       1) menu_action=config ;;
@@ -87,7 +88,8 @@ EOF
       8) menu_action=start ;;
       9) menu_action=backup ;;
       10) menu_action=update ;;
-      *) printf '无效选项，请输入 0–10。\n'; continue ;;
+      11) menu_action=login ;;
+      *) printf '无效选项，请输入 0–11。\n'; continue ;;
     esac
     if INSTALL_DIR="$install_dir" bash "$install_dir/install.sh" "$menu_action"; then
       printf '\n操作完成，已返回菜单。\n'
@@ -161,6 +163,15 @@ fi
 case "$action" in
   menu) show_menu ;;
   config) configure_service ;;
+  login)
+    if [[ -n "$(compose ps --status running -q nodeseek-tg)" ]]; then was_running=true; fi
+    compose stop
+    trap 'resume_service >/dev/null || true; cleanup' EXIT
+    compose run --rm --no-deps -p 127.0.0.1:6080:6080 -it nodeseek-tg node src/cli.mjs login </dev/tty
+    resume_service
+    was_running=false
+    trap cleanup EXIT
+    ;;
   status) compose ps; compose run --rm --no-deps -T nodeseek-tg node src/cli.mjs status ;;
   test-nodeseek|test-telegram) compose run --rm --no-deps -T nodeseek-tg node src/cli.mjs "$action" ;;
   check)

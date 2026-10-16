@@ -57,6 +57,7 @@ with tempfile.TemporaryDirectory(prefix='ns-terminal-') as directory:
         ('Telegram Bot Token', '123456:CLI-secret-token'),
         ('主人 Chat ID', '98765'),
         ('我的 NodeSeek 数字用户 ID', '42'),
+        ('登录方式', '2'),
         ('NodeSeek Cookie', 'session=CLI-secret-cookie'),
         ('浏览器 User-Agent', 'Mozilla/5.0 PTY test'),
         ('检查间隔', '60'),

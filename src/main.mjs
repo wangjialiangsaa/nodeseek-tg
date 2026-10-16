@@ -2,14 +2,15 @@ import { resolve, join } from 'node:path';
 import { writeFileSync, rmSync } from 'node:fs';
 import { Store } from './store.mjs';
 import { Monitor } from './monitor.mjs';
-import { fetchMessages } from './nodeseek.mjs';
+import { createInboxSource } from './browser.mjs';
 import { sendTelegram } from './telegram.mjs';
 import { createTransport } from './transport.mjs';
 
 const dataDir = resolve(process.env.DATA_DIR || './data');
 const store = new Store(dataDir);
 const transport = createTransport();
-const fetchInbox = config => fetchMessages(config, transport.request);
+const inbox = createInboxSource(store, transport.request);
+const fetchInbox = config => inbox.fetch(config);
 const sendMessage = (config, text) => sendTelegram(config, text, transport.request);
 const monitor = new Monitor(store, { fetchMessages: fetchInbox, send: sendMessage });
 const heartbeat = join(dataDir, '.heartbeat');
@@ -23,7 +24,7 @@ let shuttingDown = false;
 async function shutdown() {
   if (shuttingDown) return; shuttingDown = true;
   clearInterval(timer);
-  await monitor.stop(); await transport.close(); store.close();
+  await monitor.stop(); await inbox.close(); await transport.close(); store.close();
   rmSync(heartbeat, { force: true });
 }
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

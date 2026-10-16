@@ -25,7 +25,7 @@ export class Monitor {
           this.nextCheck = this.now() + config.interval * 1000;
         } catch (error) {
           const code = ['auth', 'blocked', 'format', 'network'].includes(error.code) ? error.code : 'network';
-          const text = code === 'auth' ? 'NodeSeek 登录失效，请打开面板更新 Cookie' : code === 'blocked' ? 'NodeSeek 验证或限流，请检查登录凭据与服务器 IP' : code === 'format' ? 'NodeSeek 接口格式变化，需要更新程序' : 'NodeSeek 连接失败，将自动重试';
+          const text = code === 'auth' ? 'NodeSeek 登录失效，请在 SSH 菜单重新登录或更新 Cookie' : code === 'blocked' ? 'NodeSeek 验证或限流，请在 SSH 菜单重新登录并手动完成验证，或检查服务器 IP' : code === 'format' ? 'NodeSeek 接口格式变化，需要更新程序' : 'NodeSeek 连接失败，将自动重试';
           const changed = this.store.getMeta('sourceState') !== code;
           this.store.transaction(() => {
             this.store.setMeta('sourceState', code); this.store.setMeta('sourceDetail', text);

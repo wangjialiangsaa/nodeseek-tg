@@ -12,6 +12,7 @@ export function createTerminalIO(input = process.stdin, output = process.stdout)
   rl.on('SIGINT', () => controller.abort());
   rl.on('close', () => controller.abort());
   return {
+    signal: controller.signal,
     log: text => output.write(`${text}\n`),
     async ask(label, { secret = false, defaultValue = '', hasValue = false, proxy = false } = {}) {
       const hint = secret ? `${hasValue ? '已保存，回车保留' : '输入隐藏'}${proxy ? '；- 清除' : ''}` : defaultValue ? `默认 ${defaultValue}` : '';

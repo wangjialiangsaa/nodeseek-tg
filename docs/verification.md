@@ -1,5 +1,13 @@
 # 验证记录
 
+## 账号密码登录版
+
+2026-10-16：在用户服务器的隔离 staging 目录构建镜像成功。27 项 Node 测试在真实 Linux Docker 全部通过，0 跳过；包含 Chromium 读取带 HttpOnly Cookie 的模拟私信接口、noVNC 页面启动与关闭、RFB 仅提供密码认证、只保留论坛会话数据、密码不回显及加密、登录失败保留原配置与待发队列、取消后的回滚和旧会话并发回写保护。浏览器测试同时使用只读文件系统、256 MB tmpfs、128 MB shm、cap_drop ALL 和 no-new-privileges。真实 Linux PTY 配置隐藏输入、取消、数字菜单及错误恢复均通过。
+
+真实 RFB 密码挑战/应答认证通过，随机密码文件与标准 x11vnc 格式一致。独立审查发现并修复取消时序、账号身份核对、跨轮询旧会话覆盖及临时桌面认证问题。
+
+真实论坛的 HTTP 直接访问及旧 Cookie 模式在服务器收到 Cloudflare 403；用户已同意手动浏览器验证。账号登录和实际私信读取需以接下来的现场结果为准，模拟测试不代表 Cloudflare 通行。
+
 ## SSH 配置版（当前）
 
 数字菜单验证已通过：直接运行 install.sh 打开菜单，选择状态、失败后重选、非法编号和退出均由真实 Linux PTY 测试通过。完整 Linux CI：https://github.com/wangjialiangsaa/nodeseek-tg/actions/runs/38848133679 ，代码版本 391a8053db15294e13bc377e83d8d098b01f8976。

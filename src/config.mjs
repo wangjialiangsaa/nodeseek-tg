@@ -3,12 +3,12 @@ import { defaults } from './store.mjs';
 export function validateConfig(input, previous = defaults) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('配置必须是 JSON 对象');
   const config = { ...previous };
-  const strings = ['userId', 'cookie', 'botToken', 'chatId', 'userAgent', 'nsProxy', 'tgProxy'];
-  const secrets = new Set(['cookie', 'botToken', 'nsProxy', 'tgProxy']);
+  const strings = ['userId', 'cookie', 'botToken', 'chatId', 'userAgent', 'nsProxy', 'tgProxy', 'username', 'password', 'authMode'];
+  const secrets = new Set(['cookie', 'botToken', 'nsProxy', 'tgProxy', 'password']);
   for (const key of strings) {
     if (!(key in input)) continue;
     if (typeof input[key] !== 'string') throw new Error(`${key} 必须是文本`);
-    const value = input[key].trim();
+    const value = key === 'password' ? input[key] : input[key].trim();
     if (/[\r\n\0]/.test(value)) throw new Error('凭据、代理和请求头不能包含换行或空字符');
     if (value.length > (key === 'cookie' ? 16000 : 2048)) throw new Error(`${key} 内容过长`);
     if (!value && secrets.has(key)) continue;
@@ -29,6 +29,8 @@ export function validateConfig(input, previous = defaults) {
   if (config.userId && !/^\d{1,20}$/.test(config.userId)) throw new Error('NodeSeek 用户 ID 必须是数字');
   if (config.chatId && !/^-?\d{1,20}$/.test(config.chatId)) throw new Error('主人 Chat ID 必须是数字');
   if (config.botToken && !/^\d{5,}:[A-Za-z0-9_-]{10,}$/.test(config.botToken)) throw new Error('Bot Token 格式错误');
-  if (config.enabled && ['userId', 'cookie', 'botToken', 'chatId', 'userAgent'].some(key => !config[key])) throw new Error('请填写 NodeSeek 用户 ID、Cookie、User-Agent、Bot Token 和主人 Chat ID 后开启监控');
+  if (!['cookie', 'password'].includes(config.authMode)) throw new Error('登录方式必须是账号密码或 Cookie');
+  const required = config.authMode === 'password' ? ['userId', 'username', 'password', 'botToken', 'chatId'] : ['userId', 'cookie', 'botToken', 'chatId', 'userAgent'];
+  if (config.enabled && required.some(key => !config[key])) throw new Error(config.authMode === 'password' ? '请填写 NodeSeek 用户 ID、账号、密码、Bot Token 和主人 Chat ID 后开启监控' : '请填写 NodeSeek 用户 ID、Cookie、User-Agent、Bot Token 和主人 Chat ID 后开启监控');
   return config;
 }

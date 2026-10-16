@@ -3,7 +3,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync, chmodSync } from 'n
 import { join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv, randomUUID } from 'node:crypto';
 
-export const defaults = { enabled: false, userId: '', cookie: '', botToken: '', chatId: '', interval: 60, userAgent: '', nsProxy: '', tgProxy: '' };
+export const defaults = { enabled: false, userId: '', cookie: '', botToken: '', chatId: '', interval: 60, userAgent: '', nsProxy: '', tgProxy: '', authMode: 'cookie', username: '', password: '', browserState: null };
 
 export class Store {
   constructor(directory) {
@@ -63,8 +63,16 @@ export class Store {
   }
   publicConfig() {
     const c = this.getConfig();
-    const { cookie, botToken, nsProxy, tgProxy, ...visible } = c;
-    return { ...visible, hasCookie: !!cookie, hasBotToken: !!botToken, hasNsProxy: !!nsProxy, hasTgProxy: !!tgProxy };
+    const { cookie, botToken, nsProxy, tgProxy, password, browserState, ...visible } = c;
+    return { ...visible, hasCookie: !!cookie, hasBotToken: !!botToken, hasNsProxy: !!nsProxy, hasTgProxy: !!tgProxy, hasPassword: !!password, hasBrowserState: !!browserState };
+  }
+  updateSession(revision, { browserState, cookie }) {
+    return this.transaction(() => {
+      if (this.getMeta('config') !== revision) return false;
+      const next = this.encrypt({ ...this.getConfig(), browserState, cookie });
+      this.setMeta('config', next);
+      return next;
+    });
   }
   ingest(messages) {
     return this.transaction(() => {
