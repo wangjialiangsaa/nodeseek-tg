@@ -22,10 +22,10 @@ NodeSeek 可能要求 Cloudflare 验证。Cookie 导入并不保证任意 VPS IP
 
 支持主流 Debian / Ubuntu Linux 服务器（amd64 / arm64），需要 root 权限和访问 GitHub、Docker 镜像源、NodeSeek、Telegram 的网络。没有 Docker 时，脚本调用 Docker 官方安装脚本；已有 Docker 需支持 Compose v2。
 
-从本仓库完整源码目录执行：
+以 root 用户从本仓库完整源码目录执行（root 不需要安装或使用 sudo）：
 
 ```bash
-sudo bash install.sh install
+bash install.sh install
 ```
 
 脚本将程序安装到 `/opt/nodeseek-tg`，自动生成初始管理员密码，并在启动健康检查通过后显示。默认绑定服务器 `127.0.0.1:8787`，在你的电脑建立 SSH 隧道：
@@ -39,10 +39,12 @@ ssh -L 8787:127.0.0.1:8787 root@你的服务器IP
 也可以直接从 [GitHub 仓库](https://github.com/wangjialiangsaa/nodeseek-tg) 下载脚本并一条命令安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | sudo bash -s -- install --repo wangjialiangsaa/nodeseek-tg
+curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | bash -s -- install --repo wangjialiangsaa/nodeseek-tg
 ```
 
-如需直接监听服务器 IP，首次安装使用 `sudo BIND_IP=0.0.0.0 bash install.sh install`。面板包含登录凭据，正式公网访问请配置 HTTPS 反向代理；不要通过公网明文 HTTP 传输 Cookie 和 Bot Token。
+上面的命令用于 root 用户。如果当前是普通用户且系统支持 sudo，将管道右侧改为 `sudo bash -s -- install --repo wangjialiangsaa/nodeseek-tg`；如果没有 sudo，请先切换到 root 再执行。出现 `sudo: command not found` 后的 curl `(23)` 通常是管道接收端退出的连带错误。
+
+如需直接监听服务器 IP，root 用户首次安装使用 `BIND_IP=0.0.0.0 bash install.sh install`。面板包含登录凭据，正式公网访问请配置 HTTPS 反向代理；不要通过公网明文 HTTP 传输 Cookie 和 Bot Token。
 
 ## 配置
 
