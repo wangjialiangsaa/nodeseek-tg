@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateConfig } from '../src/config.mjs';
 import { defaults } from '../src/store.mjs';
-import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, createInboxSource, fillLoginFields } from '../src/browser.mjs';
+import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, createInboxSource, fillLoginFields, canInspectLogin, loginNodeSeek } from '../src/browser.mjs';
 import { createServer } from 'node:http';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,6 +25,45 @@ test('only live forum cookies and forum local storage enter the encrypted sessio
   const state = filterState({ cookies: [makeCookie('_t', '.nodeseek.com'), makeCookie('cf_clearance', 'www.nodeseek.com'), makeCookie('dead', '.nodeseek.com', 1), makeCookie('third-party', '.example.com'), makeCookie('lookalike', 'evilnodeseek.com')], origins: [{ origin: 'https://www.nodeseek.com', localStorage: [] }, { origin: 'https://example.com', localStorage: [] }] });
   assert.equal(state.cookies.length, 3); assert.equal(state.origins.length, 1);
   assert.equal(cookieHeader(state), '_t=secret; cf_clearance=secret');
+});
+
+test('manual browser stays open while the automation connection is disconnected', { skip: !process.env.CHROMIUM_PATH || !existsSync(process.env.CHROMIUM_PATH), timeout: 45000 }, async t => {
+  const session = await openBrowser({}, { manual: true }); t.after(() => session.close());
+  await session.page.goto('data:text/html,<title>Manual login fixture</title><input id="password" type="password">');
+  assert.equal(await session.page.evaluate(() => navigator.webdriver), false);
+  await session.page.locator('#password').fill('fixture-secret');
+  await session.disconnect();
+  const pages = await session.targets(); assert.ok(pages.some(page => page.title === 'Manual login fixture'));
+  await session.connect();
+  assert.equal(await session.page.locator('#password').inputValue(), 'fixture-secret');
+  await session.close();
+  await assert.rejects(() => session.targets());
+});
+
+test('login inspection is limited to forum home and inbox after the manual sign-in page', () => {
+  for (const url of ['https://www.nodeseek.com/', 'https://nodeseek.com/notification#/message']) assert.equal(canInspectLogin(url), true);
+  for (const url of ['https://www.nodeseek.com/?__cf_chl_tk=fixture', 'https://www.nodeseek.com/signIn.html', 'https://www.nodeseek.com/api/account/signIn', 'http://www.nodeseek.com/', 'https://evilnodeseek.com/', 'about:blank']) assert.equal(canInspectLogin(url), false);
+});
+
+test('manual verification stays disconnected until confirmation and finds the authenticated tab', { timeout: 5000 }, async () => {
+  let connected = true; let confirmed = false; let checks = 0; let closed = false;
+  const guest = { url: () => 'https://www.nodeseek.com/', evaluate: async () => null };
+  const member = { url: () => 'https://www.nodeseek.com/notification', goto: async () => {}, evaluate: async fn => {
+    checks++; return fn.toString().includes('response = await fetch') ? { status: 200, data: { success: true, msgArray: [] } } : fn.toString().includes('navigator.userAgent') ? 'fixture UA' : { id: '42' };
+  } };
+  const form = { url: () => 'https://www.nodeseek.com/signIn.html', goto: async () => {}, locator: () => ({ first: () => ({ isVisible: async () => false }) }) };
+  const session = { page: form, desktopPassword: 'fixture', context: { pages: () => [guest, member], storageState: async () => ({ cookies: [{ name: '_t', value: 'fixture', domain: '.nodeseek.com', expires: -1 }], origins: [] }) }, disconnect: async () => { connected = false; }, connect: async () => { connected = true; }, targets: async () => [{ url: guest.url() }], close: async () => { closed = true; } };
+  const io = { log() {}, async confirmLogin() { assert.equal(connected, false); assert.equal(checks, 0); await new Promise(r => setTimeout(r, 40)); assert.equal(checks, 0); confirmed = true; } };
+  const result = await loginNodeSeek({ username: 'fixture', password: 'fixture', userId: '42' }, io, { open: async () => session });
+  assert.equal(confirmed, true); assert.equal(result.cookie, '_t=fixture'); assert.equal(closed, true);
+});
+
+test('cancelling disconnected manual verification closes the browser without inspecting pages', async () => {
+  const controller = new AbortController(); let closed = false;
+  const form = { url: () => 'https://www.nodeseek.com/signIn.html', goto: async () => {}, locator: () => ({ first: () => ({ isVisible: async () => false }) }) };
+  const session = { page: form, disconnect: async () => {}, connect: async () => assert.fail('Must not reconnect after cancellation'), close: async () => { closed = true; } };
+  await assert.rejects(() => loginNodeSeek({ username: 'fixture', password: 'fixture' }, { log() {}, signal: controller.signal, confirmLogin: async () => { controller.abort(); } }, { open: async () => session }), /取消/);
+  assert.equal(closed, true);
 });
 
 test('browser inbox treats HTML, login expiry and malformed payloads as failures', async () => {

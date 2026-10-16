@@ -97,19 +97,29 @@ async function main() {
   const command = process.argv[2] || 'status';
   let io; let store; let transport; let inbox;
   try {
-    io = ['config', 'configure'].includes(command) ? createTerminalIO() : { log: console.log };
+    const stdinLogin = command === 'login' && process.argv.includes('--stdin');
+    io = ['config', 'configure'].includes(command) || (command === 'login' && !stdinLogin) ? createTerminalIO() : { log: console.log };
+    if (io.ask) io.confirmLogin = () => io.ask('浏览器确认已登录后，回到此 SSH 终端按回车继续检查');
+    else if (stdinLogin) io.confirmLogin = signal => new Promise((resolve, reject) => {
+      const cleanup = () => { process.removeListener('SIGUSR1', complete); signal.removeEventListener('abort', abort); };
+      const complete = () => { cleanup(); resolve(); };
+      const abort = () => { cleanup(); reject(new Error('登录已取消或超时，原配置未改变')); };
+      process.once('SIGUSR1', complete); signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
+      else io.log('已断开自动化连接。浏览器登录完成后，由 SSH 管理员向本次登录进程发送 SIGUSR1 才开始检查。');
+    });
     store = new Store(resolve(process.env.DATA_DIR || './data'));
     transport = createTransport();
     inbox = createInboxSource(store, transport.request, { persist: command === 'check' });
     let credentials;
-    if (command === 'login' && process.argv.includes('--stdin')) {
+    if (stdinLogin) {
       let input = '';
       for await (const chunk of process.stdin) { input += chunk; if (input.length > 16000) throw new Error('标准输入过长'); }
       try { credentials = JSON.parse(input); } catch { throw new Error('标准输入必须是账号密码 JSON'); }
       if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) throw new Error('标准输入必须是账号密码 JSON 对象');
     }
     const controller = new AbortController();
-    if (command === 'login') { process.once('SIGINT', () => controller.abort()); process.once('SIGTERM', () => controller.abort()); io.signal = controller.signal; }
+    if (command === 'login') { process.once('SIGINT', () => controller.abort()); process.once('SIGTERM', () => controller.abort()); io.signal = io.signal ? AbortSignal.any([io.signal, controller.signal]) : controller.signal; }
     await runCommand(command, { store, io, credentials, fetchInbox: c => inbox.fetch(c), sendMessage: (c, text) => sendTelegram(c, text, transport.request) });
   } catch (error) { console.error(`错误：${error.message}`); process.exitCode = 1; }
   finally { io?.close?.(); await inbox?.close(); await transport?.close(); store?.close(); }

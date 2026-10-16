@@ -47,9 +47,22 @@ test('SOCKS bridge listens only on loopback and releases its listening port', as
   const [error] = await once(socket, 'error'); assert.equal(error.code, 'ECONNREFUSED');
 });
 
+test('ordinary browser relay supplies HTTP upstream credentials without putting them in browser arguments', async t => {
+  let auth;
+  const server = createServer((req, res) => { auth = req.headers['proxy-authorization']; res.end('authenticated-http-proxy'); });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const bridge = await openProxy(`http://fixture:secret@127.0.0.1:${server.address().port}`, { anonymous: true }); t.after(() => bridge.close());
+  assert.equal(new URL(bridge.url).username, '');
+  const transport = createTransport(); t.after(() => transport.close());
+  const response = await transport.request('http://proxy-fixture.invalid/', { proxy: bridge.url, signal: AbortSignal.timeout(5000) });
+  assert.equal(await response.text(), 'authenticated-http-proxy');
+  assert.equal(auth, 'Basic ' + Buffer.from('fixture:secret').toString('base64'));
+});
+
 test('real Chromium loads a page through an authenticated SOCKS5 proxy', { skip: !process.env.CHROMIUM_PATH || !existsSync(process.env.CHROMIUM_PATH), timeout: 30000 }, async t => {
   const target = await upstream(t); const socks = await socksFixture(t);
-  const session = await openBrowser({ nsProxy: socks.url }); t.after(() => session.close());
+  const session = await openBrowser({ nsProxy: socks.url }, { manual: true }); t.after(() => session.close());
   await session.page.goto(target);
   assert.match(await session.page.textContent('body'), /through-socks/);
   assert.ok(socks.seen.some(request => request.host === 'proxy-fixture.invalid'));
