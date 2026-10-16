@@ -1,0 +1,29 @@
+name: Test and build
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: bash -n install.sh
+      - run: docker compose config --quiet
+      - run: docker build -t nodeseek-tg:test .
+      - name: Container smoke test
+        run: |
+          docker run -d --name ns-test -p 127.0.0.1:8787:8787 -e ADMIN_PASSWORD=ci-only-password-123 nodeseek-tg:test
+          trap 'docker logs ns-test; docker rm -f ns-test' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8787/health; then exit 0; fi
+            sleep 1
+          done
+          exit 1
