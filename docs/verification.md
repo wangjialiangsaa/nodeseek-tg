@@ -6,7 +6,11 @@
 
 真实 Windows PTY 已验证 Token / Cookie 输入不回显、配置保存、Ctrl+C 取消。实际后台进程已验证心跳健康，不启动 HTTP 服务。独立审查发现旧更新器要求 public 目录，已保留仅兼容用途的 .gitkeep；PR 安装测试已改为检出源码。
 
-Linux PTY、Docker SSH 向导、旧版更新器兼容与备份测试待本次 CI 完成。
+Linux CI 已通过：17 项测试全部成功，0 跳过；真实 Linux PTY 和 Docker 内终端配置、隐藏输入、Ctrl+C 取消、公开链接安装、399b38a 旧版更新器升级、无管理端口的后台健康检查及备份均成功。
+
+CI 证据：https://github.com/wangjialiangsaa/nodeseek-tg/actions/runs/38847680519 ，代码版本 a0d49557d9b34f013d1512dc2642bce7b9bae4db。
+
+本地模拟终端测试目录 tmp/nodeseek-ssh-terminal-test 的删除被自动审批策略拦截，暂时保留；仅含合成凭据，未纳入仓库或源码包。真实 NodeSeek/TG 账号联调仍待用户服务器配置。
 
 ## 网页版（历史记录）
 
