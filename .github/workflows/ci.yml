@@ -15,15 +15,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: python3 tests/terminal-smoke.py
       - run: bash -n install.sh
       - run: docker compose config --quiet
       - run: docker build -t nodeseek-tg:test .
       - name: Container smoke test
         run: |
-          docker run -d --name ns-test -p 127.0.0.1:8787:8787 -e ADMIN_PASSWORD=ci-only-password-123 nodeseek-tg:test
+          docker run -d --name ns-test nodeseek-tg:test
           trap 'docker logs ns-test; docker rm -f ns-test' EXIT
           for attempt in $(seq 1 20); do
-            if curl --fail --silent http://127.0.0.1:8787/health; then exit 0; fi
+            if docker exec ns-test node src/health.mjs; then exit 0; fi
             sleep 1
           done
           exit 1
@@ -36,7 +37,15 @@ jobs:
             fi
           }
           trap cleanup EXIT
-          curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | sudo INSTALL_DIR="$target_dir" PORT=18787 bash -s -- install --repo wangjialiangsaa/nodeseek-tg
-          curl --fail --silent http://127.0.0.1:18787/health
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/main/install.sh | sudo INSTALL_DIR="$target_dir" NONINTERACTIVE=1 bash -s -- install --repo wangjialiangsaa/nodeseek-tg
+            curl -fsSL https://raw.githubusercontent.com/wangjialiangsaa/nodeseek-tg/399b38a/install.sh -o "$RUNNER_TEMP/legacy-installer.sh"
+            sudo INSTALL_DIR="$target_dir" bash "$RUNNER_TEMP/legacy-installer.sh" update --repo wangjialiangsaa/nodeseek-tg
+          else
+            sudo INSTALL_DIR="$target_dir" NONINTERACTIVE=1 bash install.sh install
+          fi
+          sudo INSTALL_DIR="$target_dir" python3 tests/terminal-smoke.py -- bash "$target_dir/install.sh" config
+          sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" status
+          docker compose --project-name nodeseek-tg -f "$target_dir/compose.yaml" exec -T nodeseek-tg node src/health.mjs
           sudo INSTALL_DIR="$target_dir" bash "$target_dir/install.sh" backup
           test -n "$(find "$target_dir/backups" -name '*.tar.gz' -size +0c -print -quit)"

@@ -1,5 +1,15 @@
 # 验证记录
 
+## SSH 配置版（当前）
+
+2026-10-16：本地 17 项测试，16 通过，1 项 Bash 检查因 Windows 缺少 Bash 跳过；依赖审计 0 已知漏洞。
+
+真实 Windows PTY 已验证 Token / Cookie 输入不回显、配置保存、Ctrl+C 取消。实际后台进程已验证心跳健康，不启动 HTTP 服务。独立审查发现旧更新器要求 public 目录，已保留仅兼容用途的 .gitkeep；PR 安装测试已改为检出源码。
+
+Linux PTY、Docker SSH 向导、旧版更新器兼容与备份测试待本次 CI 完成。
+
+## 网页版（历史记录）
+
 2026-10-16，Windows 本地，Node.js 24.21.0。
 
 - `npm test`：16 项，15 通过，0 失败，1 项因本地没有可用 Bash 而跳过。

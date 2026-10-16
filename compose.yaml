@@ -3,12 +3,6 @@ services:
     build: .
     restart: unless-stopped
     init: true
-    ports:
-      - "${BIND_IP:-127.0.0.1}:${PORT:-8787}:8787"
-    environment:
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
-      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
-      PUBLIC_URL: "${PUBLIC_URL:-}"
     volumes:
       - data:/data
     read_only: true
@@ -20,7 +14,7 @@ services:
       - no-new-privileges:true
     stop_grace_period: 60s
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "src/health.mjs"]
       interval: 30s
       timeout: 5s
       retries: 3
