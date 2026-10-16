@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateConfig } from '../src/config.mjs';
 import { defaults } from '../src/store.mjs';
-import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, createInboxSource } from '../src/browser.mjs';
+import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, createInboxSource, fillLoginFields } from '../src/browser.mjs';
 import { createServer } from 'node:http';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -72,6 +72,17 @@ test('real Chromium desktop reads an authenticated fixture inbox and serves the 
   await session.page.goto(`http://127.0.0.1:${server.address().port}`);
   assert.equal((await browserMessages(session, { userId: '42' }))[0].text, 'fixture inbox');
   const state = await session.context.storageState(); assert.ok(state.cookies.some(c => c.name === 'session'));
+  const form = '<input id="search-site" type="text"><input id="stacked-email" type="text"><input id="stacked-password" type="password">';
+  await session.page.route('https://www.nodeseek.com/signIn.html', route => route.fulfill({ contentType: 'text/html', body: form }));
+  await session.page.goto('https://www.nodeseek.com/signIn.html');
+  assert.equal(await fillLoginFields(session.page, { username: 'fixture-user', password: 'fixture-pass' }), true);
+  assert.equal(await session.page.locator('#stacked-email').inputValue(), 'fixture-user');
+  assert.equal(await session.page.locator('#stacked-password').inputValue(), 'fixture-pass');
+  assert.equal(await session.page.locator('#search-site').inputValue(), '', 'Never fill the header search field');
+  await session.page.route('https://example.com/*', route => route.fulfill({ contentType: 'text/html', body: form }));
+  await session.page.goto('https://example.com/signIn.html');
+  assert.equal(await fillLoginFields(session.page, { username: 'fixture-user', password: 'fixture-pass' }), false);
+  assert.equal(await session.page.locator('#stacked-password').inputValue(), '');
   let response;
   for (let n = 0; n < 30; n++) {
     try { response = await fetch('http://127.0.0.1:6080/vnc.html'); if (response.ok) break; } catch {}

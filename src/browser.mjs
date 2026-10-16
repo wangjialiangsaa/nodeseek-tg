@@ -85,6 +85,16 @@ export async function verifyBrowserIdentity(session, config) {
   if (identity.id !== config.userId) throw new NodeSeekError('auth', `实际登录账号 ID 为 ${identity.id}，与配置用户 ID 不一致，请修改配置后重试；原配置未改变`);
 }
 
+export async function fillLoginFields(page, config) {
+  const url = new URL(page.url());
+  if (url.protocol !== 'https:' || !isForum(url.hostname)) return false;
+  const account = page.locator('#stacked-email, #login-account-name, input[name="username"], input[name="account"], input[type="email"]').first();
+  const password = page.locator('#stacked-password, #login-account-password, input[type="password"]').first();
+  if (!await account.isVisible() || !await password.isVisible()) return false;
+  await account.fill(config.username); await password.fill(config.password);
+  return true;
+}
+
 export async function browserMessages(session, config) {
   let reply;
   try {
@@ -104,7 +114,8 @@ export async function loginNodeSeek(config, io = { log: console.log }) {
   const deadline = Date.now() + 15 * 60 * 1000;
   let succeeded = false; let filled = false; let rejected = false;
   session.page.on('response', async response => {
-    if (response.url() !== `${origin}/api/account/signIn`) return;
+    const url = new URL(response.url());
+    if (url.protocol !== 'https:' || !isForum(url.hostname) || url.pathname.toLowerCase() !== '/api/account/signin') return;
     try {
       const result = await response.json();
       if (result.success === true && result.need2FA !== true) succeeded = true;
@@ -124,10 +135,8 @@ export async function loginNodeSeek(config, io = { log: console.log }) {
       if (io.signal?.aborted) throw new Error('登录已取消，原配置未改变');
       if (session.page.isClosed()) throw new Error('登录浏览器已关闭，原配置未改变');
       if (!filled) {
-        const account = session.page.locator('#login-account-name');
-        const password = session.page.locator('#login-account-password');
-        if (await account.isVisible() && await password.isVisible()) {
-          await account.fill(config.username); await password.fill(config.password); filled = true;
+        if (await fillLoginFields(session.page, config)) {
+          filled = true;
           io.log('账号密码已填入，请完成页面验证并点击登录。');
         }
       }
