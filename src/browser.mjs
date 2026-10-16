@@ -114,7 +114,7 @@ export async function loginNodeSeek(config, io = { log: console.log }) {
   if (!config.username || !config.password) throw new Error('请先在 SSH 配置中填写 NodeSeek 账号和密码');
   // A new sign-in must not inherit another account's session.
   const session = await openBrowser({ ...config, browserState: null }, { desktop: true });
-  const deadline = Date.now() + 15 * 60 * 1000;
+  const deadline = Date.now() + 60 * 60 * 1000;
   let succeeded = false; let filled = false; let rejected = false;
   session.page.on('response', async response => {
     const url = new URL(response.url());
@@ -126,7 +126,7 @@ export async function loginNodeSeek(config, io = { log: console.log }) {
       else rejected = true;
     } catch { rejected = true; }
   });
-  io.log('浏览器验证已启动（15 分钟内完成）。配置仍在 SSH 填写。');
+  io.log('浏览器验证已启动（60 分钟内完成）。配置仍在 SSH 填写。');
   io.log('在你电脑另一个终端建立 SSH 隧道：ssh -N -L 16080:127.0.0.1:6080 root@服务器IP');
   io.log('然后打开 http://127.0.0.1:16080/vnc.html?autoconnect=true&resize=scale');
   io.log(`本次临时桌面密码：${session.desktopPassword}（仅用于此验证窗口）`);
