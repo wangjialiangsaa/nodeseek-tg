@@ -8,6 +8,8 @@
 
 真实论坛的 HTTP 直接访问及旧 Cookie 模式在服务器收到 Cloudflare 403；用户已同意手动浏览器验证。账号登录和实际私信读取需以接下来的现场结果为准，模拟测试不代表 Cloudflare 通行。
 
+已备份实际数据库、加密密钥和原程序，部署新版容器健康检查通过。实际 Telegram 测试消息发送成功；其他服务未修改。正式账号登录使用加密 SSH 标准输入，验证前不保存新凭据。临时 SSH 隧道和 noVNC 页面 HTTP 200 已确认，等待用户手动验证；当前不宣称真实 NodeSeek 登录成功。
+
 ## SSH 配置版（当前）
 
 数字菜单验证已通过：直接运行 install.sh 打开菜单，选择状态、失败后重选、非法编号和退出均由真实 Linux PTY 测试通过。完整 Linux CI：https://github.com/wangjialiangsaa/nodeseek-tg/actions/runs/38848133679 ，代码版本 391a8053db15294e13bc377e83d8d098b01f8976。
