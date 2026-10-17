@@ -7,7 +7,31 @@ import { fetchMessages } from './nodeseek.mjs';
 import { sendTelegram } from './telegram.mjs';
 import { createTransport } from './transport.mjs';
 import { Monitor } from './monitor.mjs';
-import { loginNodeSeek, createInboxSource } from './browser.mjs';
+import { loginNodeSeek, createInboxSource, verifyProxySession } from './browser.mjs';
+
+export async function configureProxy(store, io, { verify = verifyProxySession, request } = {}) {
+  const revision = store.getMeta('config');
+  const previous = store.getConfig();
+  if (!previous.userId || !previous.cookie) throw new Error('请先通过 config 完成论坛账号配置和登录');
+  io.log('填写论坛 SOCKS5 链接，例如 socks5://用户名:密码@主机:端口；也支持 HTTP(S)。输入隐藏，回车保留已有代理，- 改为直连。');
+  io.log('将通过新出口检查已有登录会话与私信接口；出口能直接访问时无需再次人工验证，论坛仍可能要求验证。');
+  const value = await io.ask('NodeSeek 代理链接', { secret: true, proxy: true, hasValue: !!previous.nsProxy });
+  if (!value.trim()) { io.log('未修改论坛代理。'); return; }
+  const next = validateConfig(value.trim() === '-' ? { clearNsProxy: true } : { nsProxy: value }, previous);
+  if (next.nsProxy === previous.nsProxy) { io.log('论坛代理未变化，无需重复检查。'); return; }
+  io.log('正在测试新出口；测试完成前保留原配置，不发送 Telegram 测试消息。');
+  if (io.signal?.aborted) throw new Error('代理配置已取消，原配置未改变');
+  let verified;
+  try { verified = await verify(next, request, { signal: io.signal }); }
+  catch {
+    if (io.signal?.aborted) throw new Error('代理配置已取消，原配置未改变');
+    throw new Error('新出口未通过登录与私信检查，原配置已保留。请检查代理；如论坛要求验证，请在 config 向导填写该代理并完成登录验证。');
+  }
+  if (io.signal?.aborted) throw new Error('代理配置已取消，原配置未改变');
+  if (!store.saveConfig({ ...next, ...verified }, revision)) throw new Error('配置已被其他进程更改，未覆盖新配置，请重新操作');
+  store.log('info', '论坛代理已验证并保存，复用已有登录会话');
+  io.log('论坛代理验证成功并已加密保存；登录和私信检查将使用该出口，检查间隔保持不变。');
+}
 
 export async function configure(store, io, { login = loginNodeSeek } = {}) {
   const previous = store.getConfig(); const input = {};
@@ -50,8 +74,9 @@ export async function configure(store, io, { login = loginNodeSeek } = {}) {
   io.log(`配置已加密保存。监控：${next.enabled ? '开启' : '暂停'}；检查间隔：${next.interval} 秒。`);
 }
 
-export async function runCommand(command, { store, io = { log: console.log }, fetchInbox = fetchMessages, sendMessage = sendTelegram, login = loginNodeSeek, credentials }) {
+export async function runCommand(command, { store, io = { log: console.log }, fetchInbox = fetchMessages, sendMessage = sendTelegram, login = loginNodeSeek, credentials, verifyProxy = verifyProxySession, request }) {
   if (command === 'configure' || command === 'config') return configure(store, io, { login });
+  if (command === 'proxy') return configureProxy(store, io, { verify: verifyProxy, request });
   let config = store.getConfig();
   if (command === 'login') {
     if (credentials) {
@@ -90,7 +115,7 @@ export async function runCommand(command, { store, io = { log: console.log }, fe
     await new Monitor(store, { fetchMessages: fetchInbox, send: sendMessage }).tick(true);
     io.log(store.stats().detail || '检查完成'); return;
   }
-  throw new Error('支持的命令：config、login、status、test-nodeseek、test-telegram、check');
+  throw new Error('支持的命令：config、proxy、login、status、test-nodeseek、test-telegram、check');
 }
 
 async function main() {
@@ -98,7 +123,7 @@ async function main() {
   let io; let store; let transport; let inbox;
   try {
     const stdinLogin = command === 'login' && process.argv.includes('--stdin');
-    io = ['config', 'configure'].includes(command) || (command === 'login' && !stdinLogin) ? createTerminalIO() : { log: console.log };
+    io = ['config', 'configure', 'proxy'].includes(command) || (command === 'login' && !stdinLogin) ? createTerminalIO() : { log: console.log };
     if (io.ask) io.confirmLogin = () => io.ask('浏览器确认已登录后，回到此 SSH 终端按回车继续检查');
     else if (stdinLogin) io.confirmLogin = signal => new Promise((resolve, reject) => {
       const cleanup = () => { process.removeListener('SIGUSR1', complete); signal.removeEventListener('abort', abort); };
@@ -119,8 +144,8 @@ async function main() {
       if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials)) throw new Error('标准输入必须是账号密码 JSON 对象');
     }
     const controller = new AbortController();
-    if (command === 'login') { process.once('SIGINT', () => controller.abort()); process.once('SIGTERM', () => controller.abort()); io.signal = io.signal ? AbortSignal.any([io.signal, controller.signal]) : controller.signal; }
-    await runCommand(command, { store, io, credentials, fetchInbox: c => inbox.fetch(c), sendMessage: (c, text) => sendTelegram(c, text, transport.request) });
+    if (command === 'login' || command === 'proxy') { process.once('SIGINT', () => controller.abort()); process.once('SIGTERM', () => controller.abort()); io.signal = io.signal ? AbortSignal.any([io.signal, controller.signal]) : controller.signal; }
+    await runCommand(command, { store, io, credentials, request: transport.request, fetchInbox: c => inbox.fetch(c), sendMessage: (c, text) => sendTelegram(c, text, transport.request) });
   } catch (error) { console.error(`错误：${error.message}`); process.exitCode = 1; }
   finally { io?.close?.(); await inbox?.close(); await transport?.close(); store?.close(); }
 }

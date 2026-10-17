@@ -9,7 +9,7 @@ test('installer is valid Bash and rejects invalid input before invoking deployme
   const syntax = spawnSync(bash, ['-n', 'install.sh'], { encoding: 'utf8' });
   assert.equal(syntax.status, 0, syntax.stderr);
   const help = spawnSync(bash, ['install.sh', '--help'], { encoding: 'utf8' });
-  assert.equal(help.status, 0, help.stderr); assert.match(help.stdout, /install|安装/);
+  assert.equal(help.status, 0, help.stderr); assert.match(help.stdout, /install|安装/); assert.match(help.stdout, /proxy/);
   const invalid = spawnSync(bash, ['install.sh', 'install', '--repo', 'bad/repo/extra'], { encoding: 'utf8' });
   assert.notEqual(invalid.status, 0); assert.match(invalid.stderr, /仓库/);
 });

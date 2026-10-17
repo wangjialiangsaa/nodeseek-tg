@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateConfig } from '../src/config.mjs';
 import { defaults } from '../src/store.mjs';
-import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, createInboxSource, fillLoginFields, canInspectLogin, loginNodeSeek } from '../src/browser.mjs';
+import { filterState, cookieHeader, browserMessages, openBrowser, verifyBrowserIdentity, verifyProxySession, createInboxSource, fillLoginFields, canInspectLogin, loginNodeSeek } from '../src/browser.mjs';
 import { createServer } from 'node:http';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -77,6 +77,48 @@ test('browser sign-in rejects missing identity or an account ID that would silen
   await assert.rejects(() => verifyBrowserIdentity({ page: { evaluate: async () => ({ id: '88' }) } }, config), /88/);
   await assert.rejects(() => verifyBrowserIdentity({ page: { evaluate: async () => null } }, config), /身份/);
   await verifyBrowserIdentity({ page: { evaluate: async () => ({ id: '42' }) } }, config);
+});
+
+test('proxy verification reuses the saved browser session and returns refreshed cookies without a manual login', async () => {
+  const state = { cookies: [{ name: 'session', value: 'refreshed', domain: '.nodeseek.com', expires: -1 }], origins: [] };
+  const config = { authMode: 'password', userId: '42', nsProxy: 'socks5://fixture:secret@127.0.0.1:1080', browserState: { cookies: [], origins: [] } };
+  let closed = false; let inbox = 0;
+  const session = { page: { goto: async url => assert.match(url, /notification#/), evaluate: async fn => {
+    if (fn.toString().includes('response = await fetch')) { inbox++; return { status: 200, data: { success: true, msgArray: [] } }; }
+    return fn.toString().includes('navigator.userAgent') ? 'fixture UA' : { id: '42' };
+  } }, context: { storageState: async () => state }, close: async () => { closed = true; } };
+  const result = await verifyProxySession(config, null, { open: async candidate => { assert.equal(candidate, config); return session; } });
+  assert.equal(inbox, 1); assert.equal(closed, true); assert.equal(result.cookie, 'session=refreshed'); assert.equal(result.userAgent, 'fixture UA');
+});
+
+test('proxy verification closes failed browser sessions and refuses a different forum account', async () => {
+  for (const identity of [null, { id: '99' }]) {
+    let closed = false;
+    await assert.rejects(() => verifyProxySession({ authMode: 'password', userId: '42', browserState: {} }, null, { open: async () => ({
+      page: { goto: async () => {}, evaluate: async () => identity }, close: async () => { closed = true; }
+    }) }));
+    assert.equal(closed, true);
+  }
+});
+
+test('Cookie-mode proxy verification uses the candidate proxy and never opens a browser', async () => {
+  const candidate = { authMode: 'cookie', userId: '42', cookie: 'fixture', nsProxy: 'socks5://127.0.0.1:1080' };
+  const result = await verifyProxySession(candidate, async (_, options) => {
+    assert.equal(options.proxy, candidate.nsProxy);
+    return { status: 200, ok: true, json: async () => ({ success: true, msgArray: [] }) };
+  }, { open: async () => assert.fail('Cookie mode should not launch a browser') });
+  assert.deepEqual(result, {});
+});
+
+test('cancelling proxy verification closes the active browser and interrupts navigation', { timeout: 1000 }, async () => {
+  const controller = new AbortController();
+  let closed = false; let rejectNavigation;
+  const session = {
+    page: { goto: () => new Promise((_, reject) => { rejectNavigation = reject; controller.abort(); }) },
+    close: async () => { closed = true; rejectNavigation?.(new Error('Browser closed')); }
+  };
+  await assert.rejects(() => verifyProxySession({ authMode: 'password', browserState: {} }, null, { signal: controller.signal, open: async () => session }), /Browser closed/);
+  assert.equal(closed, true);
 });
 
 test('a stale browser read never overwrites a newer encrypted login state', async t => {

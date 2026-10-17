@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../src/store.mjs';
-import { configure, runCommand } from '../src/cli.mjs';
+import { configure, configureProxy, runCommand } from '../src/cli.mjs';
 import { healthy } from '../src/health.mjs';
 
 function fixture(t) {
@@ -119,4 +119,48 @@ test('container health uses daemon heartbeat without any HTTP server or publishe
   assert.equal(healthy(directory, 200000), false);
   const compose = readFileSync(new URL('../compose.yaml', import.meta.url), 'utf8');
   assert.ok(!/^\s+ports:/m.test(compose));
+});
+
+test('proxy command verifies the new exit before saving and preserves interval, Telegram and queued messages', async t => {
+  const { store, directory } = fixture(t); await configure(store, scripted([...values]));
+  store.saveConfig({ ...store.getConfig(), interval: 120, nsProxy: 'socks5://old:old@127.0.0.1:1080', tgProxy: 'http://tg:secret@127.0.0.1:8080' });
+  store.ingest([{ id: '1', sender: 'A', text: 'old' }]); store.ingest([{ id: '2', sender: 'A', text: 'new' }]);
+  const before = store.getConfig(); const io = scripted(['socks5://new:proxy-secret@127.0.0.1:1081#my-exit']);
+  let checked = false;
+  await runCommand('proxy', { store, io, verifyProxy: async config => {
+    checked = true;
+    assert.equal(config.nsProxy, 'socks5://new:proxy-secret@127.0.0.1:1081');
+    assert.deepEqual(store.getConfig(), before, 'Failed tests must not install the candidate proxy');
+    return { cookie: 'session=refreshed', userAgent: 'refreshed UA', browserState: { cookies: [], origins: [] } };
+  } });
+  assert.equal(checked, true); assert.equal(store.getConfig().interval, 120);
+  assert.equal(store.getConfig().tgProxy, before.tgProxy);
+  assert.equal(store.stats().pending, 1); assert.equal(store.stats().baseline, true);
+  assert.equal(store.getConfig().nsProxy, 'socks5://new:proxy-secret@127.0.0.1:1081');
+  assert.equal(store.getConfig().cookie, 'session=refreshed'); assert.equal(store.getConfig().userAgent, 'refreshed UA');
+  assert.deepEqual(store.getConfig().browserState, { cookies: [], origins: [] });
+  assert.ok(io.prompts[0].secret); assert.ok(!io.output.join('\n').includes('proxy-secret'));
+  assert.ok(!readFileSync(join(directory, 'state.sqlite-wal')).includes(Buffer.from('proxy-secret')));
+});
+
+test('proxy failure, cancellation and concurrent config changes never replace the saved settings', async t => {
+  const { store } = fixture(t); await configure(store, scripted([...values]));
+  const before = store.getConfig(); const link = 'socks5://user:private-secret@127.0.0.1:1081';
+  await assert.rejects(() => configureProxy(store, scripted([link]), { verify: async () => { throw new Error(link); } }), error => /原配置已保留/.test(error.message) && !error.message.includes('private-secret'));
+  assert.deepEqual(store.getConfig(), before);
+  const controller = new AbortController(); const io = { ...scripted([link]), signal: controller.signal };
+  await assert.rejects(() => configureProxy(store, io, { verify: async () => { controller.abort(); return {}; } }), /取消/);
+  assert.deepEqual(store.getConfig(), before);
+  await assert.rejects(() => configureProxy(store, scripted([link]), { verify: async () => { store.saveConfig({ ...before, interval: 180 }); return {}; } }), /其他进程/);
+  assert.equal(store.getConfig().interval, 180); assert.equal(store.getConfig().nsProxy, before.nsProxy);
+});
+
+test('proxy input Enter leaves config untouched and explicit minus verifies direct access before clearing proxy', async t => {
+  const { store } = fixture(t); await configure(store, scripted([...values]));
+  store.saveConfig({ ...store.getConfig(), nsProxy: 'socks5://old:secret@127.0.0.1:1080' });
+  const before = store.getConfig();
+  await configureProxy(store, scripted(['']), { verify: async () => assert.fail('Enter should not trigger traffic') });
+  assert.deepEqual(store.getConfig(), before);
+  await configureProxy(store, scripted(['-']), { verify: async config => { assert.equal(config.nsProxy, ''); return {}; } });
+  assert.equal(store.getConfig().nsProxy, '');
 });

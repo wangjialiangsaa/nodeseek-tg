@@ -47,10 +47,11 @@ export class Store {
     catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   getConfig() { const raw = this.getMeta('config'); return raw ? { ...defaults, ...this.decrypt(raw) } : { ...defaults }; }
-  saveConfig(config) {
-    const previous = this.getConfig();
+  saveConfig(config, expectedRevision) {
     const next = { ...defaults, ...config };
     return this.transaction(() => {
+      if (expectedRevision !== undefined && this.getMeta('config') !== expectedRevision) return false;
+      const previous = this.getConfig();
       if (previous.userId !== next.userId) {
         this.db.exec('DELETE FROM seen; DELETE FROM outbox WHERE sent=0;');
         this.setMeta('baseline', '0');

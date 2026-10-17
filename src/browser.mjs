@@ -143,6 +143,28 @@ export async function browserMessages(session, config) {
   return fetchMessages(config, async () => ({ status: reply.status, ok: reply.status >= 200 && reply.status < 300, json: async () => { if (reply.data == null) throw new Error('HTML'); return reply.data; } }));
 }
 
+export async function verifyProxySession(config, request = globalThis.fetch, { open = openBrowser, signal } = {}) {
+  signal?.throwIfAborted();
+  if (config.authMode !== 'password') {
+    await fetchMessages(config, signal ? (url, options) => request(url, { ...options, signal: AbortSignal.any([options.signal, signal]) }) : request);
+    return {};
+  }
+  if (!config.browserState) throw new NodeSeekError('auth', '尚无浏览器登录会话，请先完成账号登录');
+  const session = await open(config);
+  const abort = () => { session.close().catch(() => {}); };
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    signal?.throwIfAborted();
+    await session.page.goto(`${origin}/notification#/message?mode=list`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await verifyBrowserIdentity(session, config);
+    await browserMessages(session, config);
+    const browserState = filterState(await session.context.storageState());
+    const cookie = cookieHeader(browserState);
+    if (!cookie) throw new NodeSeekError('auth', '新出口未获取到有效登录会话');
+    return { browserState, cookie, userAgent: await session.page.evaluate(() => navigator.userAgent) };
+  } finally { signal?.removeEventListener('abort', abort); await session.close(); }
+}
+
 export async function loginNodeSeek(config, io = { log: console.log }, { open = openBrowser } = {}) {
   if (!config.username || !config.password) throw new Error('请先在 SSH 配置中填写 NodeSeek 账号和密码');
   // A new sign-in must not inherit another account's session.

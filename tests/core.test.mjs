@@ -54,6 +54,20 @@ test('secrets are encrypted at rest and excluded from public configuration', t =
   }
 });
 
+test('conditional config saves refuse stale revisions from another database connection', t => {
+  const { store, dir } = fixture(t);
+  const other = new Store(dir);
+  try {
+    const revision = store.getMeta('config');
+    other.saveConfig({ ...other.getConfig(), interval: 180 });
+    assert.equal(store.saveConfig({ ...config, nsProxy: 'socks5://127.0.0.1:1080' }, revision), false);
+    assert.equal(store.getConfig().interval, 180);
+    assert.equal(store.getConfig().nsProxy, '');
+    assert.ok(store.saveConfig({ ...store.getConfig(), interval: 120 }, store.getMeta('config')));
+    assert.equal(other.getConfig().interval, 120);
+  } finally { other.close(); }
+});
+
 test('Telegram and Cookie edits preserve pending messages; changing account ID rebuilds baseline', t => {
   const { store } = fixture(t);
   store.ingest(normalizeMessages({ success: true, msgArray: [row(1)] }, '42'));
